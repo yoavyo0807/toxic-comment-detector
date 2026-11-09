@@ -4,6 +4,13 @@ A multi-label classification model for detecting toxic comments (NSFW, hate spee
 # Description
 Toxic comments (pornographic, offensive, racist, harassing) are a widespread issue on social media. We trained a DistilBERT model, a variant of the BERT architecture, on our prepared dataset. The model is fine-tuned to detect toxic comments that fall under three categories: NSFW, bullying and hate speech. Essentially, our model is a multi-label fine-tuned model. We used DistilBERT in order to lower computation power, and to see the results of a small language model.
 
+## Status and known issues
+This is a cleaned-up version of a data-science final project built with a partner.
+- Training code computed the loss on sigmoid outputs instead of raw logits; a corrected retraining is planned.
+- Metrics and hyperparameters in the sections below come from the original runs and are being re-verified.
+- Labels come from the Jigsaw dataset: "nsfw" = obscene language, "bullying" = insult or threat.
+- The trained classifier file is not included; see the planned rebuild.
+
 # Installation
 In order to run the project one needs to use the following Python libraries using package manager pip:
 '''pip install Transformers torch pandas lightning numpy pickle'''
