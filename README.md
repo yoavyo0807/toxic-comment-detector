@@ -163,7 +163,7 @@ Edited messages are now checked too.
 ## History and credits
 
 This project started as the final project of the Data Science certificate at Bar-Ilan
-University, built by **Yoav Yosef** and **[partner's name]**, who wrote most of the commits in
+University, built by **Yoav Yosef** and **Eli Borodach**, who wrote most of the commits in
 the original repository, including the training and preprocessing notebooks.
 
 The original training notebook is kept for reference in `notebooks/original_2024/`. Note that it
