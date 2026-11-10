@@ -1,87 +1,184 @@
-# toxic-comment_detection
-A multi-label classification model for detecting toxic comments (NSFW, hate speech, and bullying) in Telegram chats using DistilBERT.
+# toxic-comment-detector
 
-# Description
-Toxic comments (pornographic, offensive, racist, harassing) are a widespread issue on social media. We trained a DistilBERT model, a variant of the BERT architecture, on our prepared dataset. The model is fine-tuned to detect toxic comments that fall under three categories: NSFW, bullying and hate speech. Essentially, our model is a multi-label fine-tuned model. We used DistilBERT in order to lower computation power, and to see the results of a small language model.
+A Telegram moderation bot backed by a fine-tuned **DistilBERT** multi-label classifier.
+Every text message in the group is scored for three kinds of abusive language. If any
+label fires, the bot deletes the message and posts a short public notice. Photos,
+videos, audio files and voice messages are removed by a simple rule, without AI.
 
-## Status and known issues
-This is a cleaned-up version of a data-science final project built with a partner.
-- Training code computed the loss on sigmoid outputs instead of raw logits; a corrected retraining is planned.
-- Metrics and hyperparameters in the sections below come from the original runs and are being re-verified.
-- Labels come from the Jigsaw dataset: "nsfw" = obscene language, "bullying" = insult or threat.
-- The trained classifier file is not included; see the planned rebuild.
+> **Status (November 2026): rewritten, retraining pending.**
+> The code has been rewritten and tested (see [What this rewrite fixed](#what-this-rewrite-fixed)).
+> The model has **not yet been retrained** with the new pipeline, so this README reports
+> **no results yet**. The [Results](#results) section will be filled only from the
+> `metrics.json` of an actual run.
 
-# Installation
-In order to run the project one needs to use the following Python libraries using package manager pip:
-'''pip install Transformers torch pandas lightning numpy pickle'''
+---
 
-# Usage
-The model is availabe in my Hugging Face profile: https://huggingface.co/Yoav-Yosef/toxic-comment-detection-model, and is available to download.
+## How it works
 
-# Dataset
-The dataset used for training and evaluating the DistilBERT model is the Jigsaw Toxic Comment Classification Challenge dataset from Kaggle. This dataset contains a collection of comments labeled across six categories: toxic, severe_toxic, obscene, threat, insult, and identity_hate.
+```
+Telegram message
+  └─ bot/main.py            text? -> ask the model;  photo/video/audio/voice? -> remove (rule)
+       └─ predict.py         preprocess() -> tokenizer (max 256 tokens) -> DistilBERT
+            └─ model.py      vector of the first token, [CLS] (768 numbers) -> 1 linear layer -> 3 logits
+                 └─ sigmoid -> 3 probabilities -> per-label threshold (0.5) -> list of labels
+  └─ bot/messages.py        [] -> do nothing;  ["obscene", ...] -> delete + "Dana: message removed (obscene language)"
+```
 
-**Preprocessing Steps:**
+The same `ToxicClassifier` class and the same `preprocess()` function are used in training
+and in the bot, so the model that is tested is the model that is served. The training
+notebook checks this on every run.
 
-1. **Data Cleaning**: Extensive text cleaning was performed to remove noise and irrelevant information from the comments. This included:
-   - Removing HTML/XML tags, special characters, URLs, and links
-   - Converting text to lowercase
-   - Removing non-English text using the `langdetect` library
-   - Tokenization and stopword removal using the `spacy` library
-   - Removing numerical values, curly braces, and colons
+## Labels
 
-2. **Handling Empty Rows**: Rows with empty comments were removed from the dataset using the `remove_empty_rows` function.
+Built from the [Jigsaw Toxic Comment Classification Challenge](https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge)
+annotations. The names describe what annotators marked, no more:
 
-3. **Column Preprocessing**:
-   - A new column 'bullying' was created by taking the maximum value of the 'threat' and 'insult' columns.
-   - The 'obscene' column was renamed to 'nsfw' (Not Safe For Work).
-   - The 'identity_hate' column was renamed to 'hate_speech'.
-   - The 'threat' and 'insult' columns were dropped.
+| Label | Built from Jigsaw column(s) | What it means | What it does **not** mean |
+|---|---|---|---|
+| `obscene` | `obscene` | vulgar or profane language | sexual content (the old name "nsfw" overstated this) |
+| `hate_speech` | `identity_hate` | abuse aimed at an identity group | every offensive mention of a group |
+| `insult_or_threat` | `insult` OR `threat` | an insult or a threat in this comment | bullying, which is a repeated pattern between people, invisible in a single comment |
 
-After preprocessing, the dataset was split into training and testing sets, with the cleaned data saved as CSV files for further use.
+Jigsaw's `toxic` and `severe_toxic` columns are not used.
 
-**Final Dataset:**
-The final dataset used for training and evaluation consists of the following columns:
+## Repository layout
 
-- `comment_text`: The text of the comment.
-- `nsfw`: A binary label indicating whether the comment contains Not Safe For Work (NSFW) content.
-- `hate_speech`: A binary label indicating whether the comment contains hate speech.
-- `bullying`: A binary label indicating whether the comment contains bullying content.
+```
+toxic_detector/        shared core, used by training AND the bot
+  config.py            labels, base model, max length, thresholds, training settings
+  preprocess.py        the one cleaning function (HTML, URLs, whitespace; nothing else)
+  model.py             ToxicClassifier = DistilBERT + one linear head; save/load (no pickle)
+  predict.py           Detector: raw text -> list of labels
+  data.py              Jigsaw train.csv -> 3 labels -> seeded, stratified 80/10/10 split
+  training.py          Lightning training loop, loss, per-label metrics
+bot/
+  messages.py          everything the bot says (pure functions)
+  main.py              Telegram wiring
+notebooks/
+  train_colab.ipynb    train, test, save, verify, (optionally) publish, on a Colab GPU
+tests/
+  test_smoke.py        fast offline checks of the whole pipeline (tiny random model)
+```
 
-The value counts for each label in the training set are visualized using the `visualize_columns` function, providing insights into the class distribution and potential imbalances.
+## Quick start
 
-By performing these preprocessing steps, the dataset was cleaned and prepared for training the DistilBERT model, ensuring that the model receives high-quality input data and learns to classify toxic comments accurately.
+**1. Install** (Python 3.10+):
+```bash
+pip install -r requirements.txt          # the bot
+pip install -r requirements-train.txt    # + training and tests
+pytest -q                                # ~10 s, offline
+```
 
-# Model Architecture - DistilBERT
-DistilBERT was chosen for this project due to its reduced computational requirements and faster inference speed compared to the larger BERT model, while still maintaining high performance. The specific configuration used for the DistilBERT model in this project is as follows:
+**2. Train** in Google Colab: open `notebooks/train_colab.ipynb`, switch the runtime to GPU,
+and run it top to bottom. You will need Kaggle's `train.csv` from the competition page above
+(accept the competition rules first). The data is **not** included in this repository and
+must not be committed: Kaggle's rules do not allow redistributing it. Run once with
+`QUICK_RUN = True` to check the notebook, then with `False` for a real run. You get a
+`model/` folder and `metrics.json`.
 
-- Pretrained Model: `distilbert-base-uncased`
-- Maximum Sequence Length: 512
-- Learning Rate: 2e-5
-- Batch Size: 16
-- Number of Epochs: 5
+**3. Run the bot**:
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy its token.
+2. Add the bot to your group as an **admin with permission to delete messages**.
+   Without that permission it logs an error and leaves messages in place.
+3. Copy `.env.example` to `.env`, fill in `TELEGRAM_TOKEN` and `MODEL_PATH` (the `model/`
+   folder, or a Hugging Face repo id), then from the repository root:
+```bash
+set -a; source .env; set +a
+python -m bot.main
+```
+Tokens are only read from environment variables. Never write one into code or a notebook.
 
-The rationale behind choosing DistilBERT over other models like BERT or RoBERTa is twofold:
+## Results
 
-1. **Reduced Computation Requirements**: DistilBERT is a distilled version of the larger BERT model, making it significantly smaller in size (66M parameters compared to BERT's 110M parameters). This reduced model size translates to lower computational requirements, making it more feasible to train and deploy the model on resource-constrained environments.
+**No results yet.** Every number in this section will be copied from the `metrics.json`
+written by a full (non-quick) run of the notebook, together with that run's settings.
 
-2. **Faster Inference**: Due to its smaller size, DistilBERT can perform inference much faster than its larger counterparts. This is particularly beneficial for real-time applications or scenarios where low latency is crucial.
+| | AUROC | Precision | Recall | F1 |
+|---|---|---|---|---|
+| `obscene` | *to verify* | *to verify* | *to verify* | *to verify* |
+| `hate_speech` | *to verify* | *to verify* | *to verify* | *to verify* |
+| `insult_or_threat` | *to verify* | *to verify* | *to verify* | *to verify* |
+| macro average | *to verify* | *to verify* | *to verify* | *to verify* |
 
-Despite its smaller size, DistilBERT has been shown to achieve performance close to that of BERT on various natural language processing tasks, making it an attractive choice for this multi-label classification problem.
+When filling this in, also report: the share of positives per label in the test set (from
+`metrics.json → data.label_summary`), the thresholds used, the training settings, and the
+commit the model was trained from. Precision, recall and F1 depend on the threshold;
+AUROC does not.
 
-# Evaluation
-The performance of the DistilBERT model was evaluated on a held-out test set. The following evaluation metrics were chosen:
+## What this rewrite fixed
 
-| Metric    | Value  |
-|-----------|--------|
-| AUROC     | 0.9304 |
-| F1-Score  | 0.7930 |
-| Loss      | 0.6311 |
+| # | Problem in the first version | Fix |
+|---|---|---|
+| 1 | The loss received probabilities instead of logits (sigmoid applied twice), so the reported loss was meaningless and the learning signal was distorted | `BCEWithLogitsLoss(logits, labels)`; sigmoid only for metrics and prediction |
+| 3 | README hyperparameters did not match the notebook | One `TrainConfig`; the values of each run are saved with the model |
+| 5 | Training text was heavily cleaned (lowercase, stopwords removed, ...) but the bot sent raw text | One light `preprocess()` used by both training and prediction |
+| 6 | No truncation: messages over 512 tokens crashed prediction | Always truncated to the training length (256 tokens) |
+| 7 | The bot decided by comparing the model's sentence with `"This message was approved"` | `predict()` returns a list of labels; the bot builds the wording |
+| 8 | Users without a last name crashed the handler before their message was deleted | `display_name()` uses whatever name parts exist |
+| 9 | Four near-identical media handlers | One handler and one `MEDIA_RULES` table |
+| 10 | No tests | `tests/test_smoke.py`, offline, plus an optional check on the real model |
+| 11 | The classifier head (`top_layer_classifier.pkl`) was missing; the repo could not run | The model is saved as one folder of `.safetensors` + JSON, no pickle |
 
-The Area Under the Receiver Operating Characteristic (AUROC) is a commonly used metric for evaluating binary and multi-label classification models. It measures the model's ability to distinguish between positive and negative instances across different classification thresholds. An AUROC score of 0.9304 indicates that the model performs well in separating the toxic comments from non-toxic ones.
-The F1-Score is the harmonic mean of precision and recall, providing a balanced measure of the model's performance. It is particularly useful in multi-label classification tasks where both precision (avoiding false positives) and recall (capturing true positives) are important. The F1-Score of 0.7930 suggests that the model achieves a good balance between these two metrics.
-The Loss value represents the overall error or cost function minimized during the training process. A lower loss value generally indicates better model performance, but it should be interpreted in conjunction with other metrics like AUROC and F1-Score.
-These evaluation metrics were chosen to provide a comprehensive assessment of the model's performance in detecting toxic comments accurately. The AUROC and F1-Score are particularly informative for this multi-label classification task, as they capture the model's ability to identify toxic comments while minimizing false positives and false negatives.
+Also: `python-telegram-bot` 13 → 22, because version 13 does not run on Python 3.13.
+Edited messages are now checked too.
 
-# Contact
-email: yoav.yosef1@gmail.com
+## Known issues
+
+- **Thresholds are not tuned.** Every label fires at probability 0.5. The labels have very
+  different base rates, so 0.5 is probably not the best cut-off for any of them. Planned:
+  choose each threshold on the validation set, never on the test set.
+- **Evaluation is on Jigsaw's natural label distribution only.** The first version trained
+  and tested on a "balanced" sub-sample whose construction is not documented and cannot be
+  reproduced. The rewrite trains on the full, unbalanced data. A balanced-vs-natural
+  comparison has not been done.
+- **The first version's deployed model is not reproduced here.** It is not known whether its
+  served classifier was the same object as the trained one (the code that produced
+  `top_layer_classifier.pkl` is not in the repository). The rewrite replaces it rather than
+  verifying it.
+- **`hate_speech` has few examples** (about 1% of Jigsaw comments), so its metrics will be
+  the least stable. Read them next to the positive counts.
+- **Text only.** Captions on photos and videos are not scored (the media is removed anyway),
+  and nothing judges images or audio.
+- **One message at a time.** The model sees no conversation context: quotes, replies,
+  irony and reclaimed words are judged in isolation.
+
+## Limitations
+
+- **Domain shift.** Jigsaw comments come from English Wikipedia talk pages, and the
+  annotations were collected for that setting. A Telegram group writes differently: slang,
+  emoji, very short messages, mixed languages. Performance in a real chat will differ from
+  the test-set numbers, and it is not measured here.
+- **English only.** Messages in other languages (Hebrew, Spanish, ...) are out of scope.
+  The model will still return scores for them, and those scores are not meaningful.
+- **Label definitions and annotator judgement.** The labels reflect Jigsaw's crowd
+  annotators. Models trained on this data are known to over-flag comments that merely
+  *mention* identity terms (Jigsaw ran a follow-up competition on exactly this bias). Treat
+  `hate_speech` with particular care.
+- **Truncation.** Only the first 256 tokens are read. Abuse at the end of a very long
+  message can be missed.
+- **Automatic deletion has no appeal.** Every mistake removes someone's message in public.
+  For a real community, prefer flagging messages to a human moderator, or at least logging
+  deletions for review.
+
+## History and credits
+
+This project started as the final project of the Data Science certificate at Bar-Ilan
+University, built by **Yoav Yosef** and **[partner's name]**, who wrote most of the commits in
+the original repository, including the training and preprocessing notebooks.
+
+The original training notebook is kept for reference in `notebooks/original_2024/`. Note that it
+trains `AutoModelForSequenceClassification` (with its own built-in head), while the first bot
+loaded `AutoModel` plus a separately pickled linear layer; it is not used by the current code.
+
+The first version reported AUROC 0.9304, F1 0.7930 and loss 0.6311 on its test set. Those
+numbers are **not** results of this repository: they came from a balanced sub-sample whose
+construction is undocumented, from heavily cleaned text, and from training with the loss bug
+described above (which makes the loss value meaningless). They cannot be reproduced or
+compared with anything here.
+
+The 2026 rewrite (code structure, fixes, tests, notebook and this README) was done by Yoav
+Yosef with the help of an AI coding assistant (Claude).
+
+Licensed under the [MIT License](LICENSE).
+
+Contact: yoav.yosef1@gmail.com

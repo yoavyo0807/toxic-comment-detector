@@ -1,5 +1,8 @@
-torch
-python-telegram-bot==13.13
-lightning
-transformers
-numpy
+# What the BOT needs (prediction only). Training adds more: see requirements-train.txt.
+# Ranges, not exact pins: lower bounds = oldest versions with the features we use;
+# upper bounds stop a future major version from silently changing behaviour.
+torch>=2.2
+transformers>=4.40,<6          # AutoModel / AutoTokenizer / save_pretrained
+safetensors>=0.4               # model weights as plain tensors (no pickle)
+huggingface_hub>=0.22          # optional: load the model from a Hugging Face repo id
+python-telegram-bot>=22,<23    # v13 cannot run on Python 3.13; v22 is async

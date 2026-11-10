@@ -1,6 +1,25 @@
+# --- Data: Kaggle's rules do not allow redistributing Jigsaw. Never commit it. ---
+data/
+*.csv
+
+# --- Trained models and training by-products: large; they belong on Hugging Face, not Git ---
+model/
+models/
+lightning_logs/
+checkpoints/
+*.ckpt
+wandb/
+
+# --- Secrets ---
 .env
-.idea/
+
+# --- Python / editor noise ---
 __pycache__/
 *.pyc
-*.pkl
-STUDY_NOTES.md
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,7 @@
+# Everything for TRAINING and TESTS (used by the Colab notebook), on top of the bot's needs.
+-r requirements.txt
+lightning>=2.2                 # the training loop (ToxicTrainer)
+torchmetrics>=1.3              # per-label AUROC / precision / recall / F1
+pandas>=2.0                    # reading Jigsaw's train.csv
+scikit-learn>=1.3              # stratified, seeded train/val/test split
+pytest>=8                      # tests/test_smoke.py
