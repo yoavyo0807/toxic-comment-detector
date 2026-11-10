@@ -5,11 +5,11 @@ Every text message in the group is scored for three kinds of abusive language. I
 label fires, the bot deletes the message and posts a short public notice. Photos,
 videos, audio files and voice messages are removed by a simple rule, without AI.
 
-> **Status (November 2026): rewritten, retraining pending.**
-> The code has been rewritten and tested (see [What this rewrite fixed](#what-this-rewrite-fixed)).
-> The model has **not yet been retrained** with the new pipeline, so this README reports
-> **no results yet**. The [Results](#results) section will be filled only from the
-> `metrics.json` of an actual run.
+> **Status (November 2026): rewritten, retrained, tested.**
+> The code has been rewritten and tested (see [What this rewrite fixed](#what-this-rewrite-fixed)),
+> the model was retrained once with the new pipeline, and the bot was checked by hand in a
+> Telegram group. Every number below comes from that single run
+> ([`results/metrics_2026-11-10.json`](results/metrics_2026-11-10.json)).
 
 ---
 
@@ -90,20 +90,42 @@ Tokens are only read from environment variables. Never write one into code or a 
 
 ## Results
 
-**No results yet.** Every number in this section will be copied from the `metrics.json`
-written by a full (non-quick) run of the notebook, together with that run's settings.
+One training run on 10 November 2026, from commit `159ec5b`, using
+`notebooks/train_colab.ipynb` on a free Google Colab GPU. The whole notebook, from start to
+download, took about 30 minutes. The full record (settings, data summary, all metrics,
+library versions) is in [`results/metrics_2026-11-10.json`](results/metrics_2026-11-10.json).
 
-| | AUROC | Precision | Recall | F1 |
-|---|---|---|---|---|
-| `obscene` | *to verify* | *to verify* | *to verify* | *to verify* |
-| `hate_speech` | *to verify* | *to verify* | *to verify* | *to verify* |
-| `insult_or_threat` | *to verify* | *to verify* | *to verify* | *to verify* |
-| macro average | *to verify* | *to verify* | *to verify* | *to verify* |
+**Settings:** `distilbert-base-uncased`, 2 epochs, learning rate 2e-5, batch size 32, warmup 6%,
+weight decay 0.01, max length 256 tokens, seed 42.
 
-When filling this in, also report: the share of positives per label in the test set (from
-`metrics.json → data.label_summary`), the thresholds used, the training settings, and the
-commit the model was trained from. Precision, recall and F1 depend on the threshold;
-AUROC does not.
+**Data:** Jigsaw `train.csv`, 159,571 comments, natural label distribution, stratified
+80/10/10 split (127,655 / 15,958 / 15,958).
+
+**Test set (15,958 comments, never used for training or for any choice), threshold 0.5 for every label:**
+
+| Label | Positives in test set | AUROC | Precision | Recall | F1 |
+|---|---|---|---|---|---|
+| `obscene` | 5.30% | 0.995 | 0.857 | 0.834 | 0.845 |
+| `hate_speech` | 0.88% | 0.985 | 0.657 | 0.493 | 0.563 |
+| `insult_or_threat` | 5.05% | 0.989 | 0.759 | 0.757 | 0.758 |
+| macro average | | 0.990 | 0.757 | 0.695 | 0.722 |
+
+Test loss (binary cross-entropy on logits): 0.040.
+
+**How to read this**
+- **AUROC** measures how well the scores *rank* comments (a random toxic comment above a random
+  clean one), independent of any threshold. It is high for all three labels.
+- **Precision, recall and F1** describe what the bot actually does at threshold 0.5.
+  `hate_speech` is clearly the weakest label: it catches about half of the hate speech in the
+  test set (recall 0.49). It is also the rarest label (under 1% of comments). Its high AUROC with
+  low recall suggests that 0.5 is too high a cut-off for it; see [Known issues](#known-issues).
+- These are numbers on Jigsaw's Wikipedia comments, not on Telegram chat. See
+  [Limitations](#limitations).
+- One run, one seed: no variance across runs has been measured.
+
+**Manual check in Telegram** (by hand, in a private test group, not a measurement): a polite
+message was left alone; an insult, a photo and a voice message were removed with the expected
+notices.
 
 ## What this rewrite fixed
 
@@ -125,8 +147,8 @@ Edited messages are now checked too.
 ## Known issues
 
 - **Thresholds are not tuned.** Every label fires at probability 0.5. The labels have very
-  different base rates, so 0.5 is probably not the best cut-off for any of them. Planned:
-  choose each threshold on the validation set, never on the test set.
+  different base rates, and the results show the cost: `hate_speech` has AUROC 0.985 but recall
+  0.49 at 0.5. Planned: choose each threshold on the validation set, never on the test set.
 - **Evaluation is on Jigsaw's natural label distribution only.** The first version trained
   and tested on a "balanced" sub-sample whose construction is not documented and cannot be
   reproduced. The rewrite trains on the full, unbalanced data. A balanced-vs-natural
@@ -135,8 +157,11 @@ Edited messages are now checked too.
   served classifier was the same object as the trained one (the code that produced
   `top_layer_classifier.pkl` is not in the repository). The rewrite replaces it rather than
   verifying it.
-- **`hate_speech` has few examples** (about 1% of Jigsaw comments), so its metrics will be
-  the least stable. Read them next to the positive counts.
+- **`hate_speech` has few examples** (0.88% of comments, about 140 in the test set), so its
+  metrics are the least stable. Read them next to the positive counts.
+- **Threats are under-represented.** `insult_or_threat` merges Jigsaw's `insult` and `threat`,
+  and threats are far rarer, so the label mostly reflects insults. In the notebook's demo, a
+  plain threat ("Shut up or I will find you") scored only 0.17 for this label.
 - **Text only.** Captions on photos and videos are not scored (the media is removed anyway),
   and nothing judges images or audio.
 - **One message at a time.** The model sees no conversation context: quotes, replies,

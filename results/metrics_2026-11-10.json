@@ -1,0 +1,69 @@
+{
+  "train_config": {
+    "seed": 42,
+    "learning_rate": 2e-05,
+    "batch_size": 32,
+    "epochs": 2,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.06,
+    "val_size": 0.1,
+    "test_size": 0.1,
+    "max_length": 256,
+    "base_model": "distilbert-base-uncased"
+  },
+  "quick_run": false,
+  "data": {
+    "source": "Jigsaw Toxic Comment Classification Challenge, train.csv",
+    "label_summary": {
+      "all": {
+        "rows": 159571,
+        "obscene": 0.0529,
+        "hate_speech": 0.0088,
+        "insult_or_threat": 0.0504
+      },
+      "train": {
+        "rows": 127655,
+        "obscene": 0.0529,
+        "hate_speech": 0.0088,
+        "insult_or_threat": 0.0504
+      },
+      "val": {
+        "rows": 15958,
+        "obscene": 0.053,
+        "hate_speech": 0.0088,
+        "insult_or_threat": 0.0504
+      },
+      "test": {
+        "rows": 15958,
+        "obscene": 0.053,
+        "hate_speech": 0.0088,
+        "insult_or_threat": 0.0505
+      }
+    }
+  },
+  "test_metrics": {
+    "loss": 0.040361471474170685,
+    "test/auroc/obscene": 0.9948551654815674,
+    "test/auroc/hate_speech": 0.9848736524581909,
+    "test/auroc/insult_or_threat": 0.9887784719467163,
+    "test/auroc/macro": 0.9895024299621582,
+    "test/f1/obscene": 0.8453237414360046,
+    "test/f1/hate_speech": 0.563265323638916,
+    "test/f1/insult_or_threat": 0.7577639818191528,
+    "test/f1/macro": 0.7221176624298096,
+    "test/precision/obscene": 0.8566220998764038,
+    "test/precision/hate_speech": 0.6571428775787354,
+    "test/precision/insult_or_threat": 0.7587064504623413,
+    "test/precision/macro": 0.7574905157089233,
+    "test/recall/obscene": 0.834319531917572,
+    "test/recall/hate_speech": 0.4928571283817291,
+    "test/recall/insult_or_threat": 0.7568238377571106,
+    "test/recall/macro": 0.694666862487793
+  },
+  "versions": {
+    "python": "3.13.16",
+    "torch": "2.14.1+cu130",
+    "transformers": "5.22.1",
+    "lightning": "2.6.6"
+  }
+}

@@ -7,6 +7,9 @@ model/
 models/
 lightning_logs/
 checkpoints/
+# Colab downloads; a dated copy of each run's metrics is kept in results/ instead
+/metrics.json
+/model.zip
 *.ckpt
 wandb/
 
