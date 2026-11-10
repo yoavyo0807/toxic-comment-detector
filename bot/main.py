@@ -124,6 +124,10 @@ async def _on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s: %(message)s",
                         level=logging.INFO)
+    # The HTTP library logs every request at INFO level, and Telegram's request URLs
+    # contain the bot token (https://api.telegram.org/bot<TOKEN>/...). Showing only its
+    # warnings keeps the token out of the terminal and out of any pasted logs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     token = os.environ.get("TELEGRAM_TOKEN")
     if not token:
         raise SystemExit("Set the TELEGRAM_TOKEN environment variable (see .env.example).")
